@@ -1,0 +1,16 @@
+{
+  "name": "codebase-agent",
+  "owner": {
+    "name": "codebase-agent"
+  },
+  "plugins": [
+    {
+      "name": "codebase-agent-plugin",
+      "description": "Semantic codebase search and convention-aware code generation for Claude Code.",
+      "source": {
+        "source": "local",
+        "path": "codebase-agent-plugin"
+      }
+    }
+  ]
+}

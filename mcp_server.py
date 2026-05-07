@@ -1,45 +1,52 @@
 """
 mcp_server.py — global MCP server for Claude Code.
-
-Install once, works across all projects automatically.
-Each project gets its own isolated vector DB at:
-  <project_root>/.codebase-agent/chroma/
-
-How it works:
-  Claude Code launches this server with CWD = your project root.
-  The server detects the project automatically from CWD.
-  No per-project config needed.
-
-Global install:
-  claude mcp add-json codebase-agent --scope user '{
-    "command": "python",
-    "args": ["/absolute/path/to/mcp_server/mcp_server.py"]
-  }'
 """
 
 import sys
 import os
 
-# Add the codebase-agent root to path so we can import our modules
-_SERVER_DIR  = os.path.dirname(os.path.abspath(__file__))
-_AGENT_ROOT  = os.path.dirname(_SERVER_DIR)
-sys.path.insert(0, _AGENT_ROOT)
+# ── Path setup — must happen before any local imports ────────────
+# This file can be at any location. We find the agent root by
+# looking for embedder.py as a landmark file.
+_THIS_FILE   = os.path.abspath(__file__)
+_THIS_DIR    = os.path.dirname(_THIS_FILE)
 
+# Find agent root by looking for chunker.py as landmark
+# (works whether mcp_server.py is at root or in a subfolder)
+_CANDIDATES = [_THIS_DIR, os.path.dirname(_THIS_DIR)]
+_AGENT_ROOT = None
+for _candidate in _CANDIDATES:
+    if os.path.exists(os.path.join(_candidate, "chunker.py")):
+        _AGENT_ROOT = _candidate
+        break
+
+if _AGENT_ROOT is None:
+    print(
+        f"ERROR: Could not find chunker.py near {_THIS_FILE}\n"
+        f"Checked: {_CANDIDATES}",
+        file=sys.stderr
+    )
+    sys.exit(1)
+
+# Add both root and clusterer/ subdir to path
+if _AGENT_ROOT not in sys.path:
+    sys.path.insert(0, _AGENT_ROOT)
+
+_CLUSTERER_DIR = os.path.join(_AGENT_ROOT, "clusterer")
+if os.path.exists(_CLUSTERER_DIR) and _CLUSTERER_DIR not in sys.path:
+    sys.path.insert(0, _CLUSTERER_DIR)
+
+# ── Load .env from agent root ────────────────────────────────────
 from dotenv import load_dotenv
-
-# Load .env from agent root (for API keys)
 load_dotenv(os.path.join(_AGENT_ROOT, ".env"))
 
 # ── Project detection ─────────────────────────────────────────────
-# CWD when the server starts = the project Claude Code opened
-# Store the DB inside the project so each project is isolated
+# CWD when Claude Code launches this = the project you opened
 PROJECT_ROOT = os.getcwd()
 PROJECT_DB   = os.path.join(PROJECT_ROOT, ".codebase-agent", "chroma")
-
-# Override the CHROMA_PATH so all our modules use the project DB
 os.environ["CHROMA_PATH"] = PROJECT_DB
 
-# ─────────────────────────────────────────────────────────────────
+# ── Now safe to import local modules ────────────────────────────
 from mcp.server.fastmcp import FastMCP
 from embedder import get_client, embed_texts
 from vectordb import (
@@ -53,7 +60,6 @@ from vectordb import (
 
 mcp = FastMCP("codebase-agent")
 
-# Lazy-initialized shared clients
 _clients = {}
 
 
@@ -72,8 +78,7 @@ def _embed(text: str) -> list[float]:
 
 def _is_indexed() -> bool:
     try:
-        db = get_db()
-        return collection_stats(db)["chunks"] > 0
+        return collection_stats(get_db())["chunks"] > 0
     except Exception:
         return False
 
@@ -81,9 +86,9 @@ def _is_indexed() -> bool:
 def _not_indexed_msg() -> str:
     return (
         f"This project has not been indexed yet.\n\n"
-        f"Run this command from your project root to index it:\n\n"
-        f"  python {_AGENT_ROOT}/clusterer/index.py {PROJECT_ROOT}\n\n"
-        f"This only needs to be done once. Re-run with --reset after major changes."
+        f"Run this from your project root:\n\n"
+        f"  python {os.path.join(_AGENT_ROOT, 'clusterer', 'index.py')} {PROJECT_ROOT}\n\n"
+        f"Or call the index_project tool directly."
     )
 
 
@@ -112,8 +117,6 @@ def _fmt_pattern(result) -> str:
     )
 
 
-# ── Tool 1 — search_code ─────────────────────────────────────────
-
 @mcp.tool()
 def search_code(query: str, n_results: int = 5) -> str:
     """
@@ -128,26 +131,20 @@ def search_code(query: str, n_results: int = 5) -> str:
     """
     if not _is_indexed():
         return _not_indexed_msg()
-
     try:
         vector  = _embed(query)
         clients = _get_clients()
         results = search_chunks(clients["chunks"], vector, n_results=min(n_results, 10))
         results = [r for r in results if r.similarity >= 0.3]
-
         if not results:
             return f"No relevant code found for: '{query}'"
-
         parts = [f"**{len(results)} results for '{query}'** in `{PROJECT_ROOT}`\n"]
         for i, r in enumerate(results):
             parts.append(_fmt_chunk(r, i + 1))
         return "\n\n".join(parts)
-
     except Exception as e:
         return f"Search error: {e}"
 
-
-# ── Tool 2 — get_conventions ─────────────────────────────────────
 
 @mcp.tool()
 def get_conventions(task: str) -> str:
@@ -163,124 +160,95 @@ def get_conventions(task: str) -> str:
     """
     if not _is_indexed():
         return _not_indexed_msg()
-
     try:
         vector  = _embed(task)
         clients = _get_clients()
-
-        # Get matching patterns
         patterns = search_patterns(clients["patterns"], vector, n_results=2)
         patterns = [p for p in patterns if p.similarity >= 0.3]
-
-        # Get example code from the top matching pattern
         example_chunks = []
         if patterns:
             top = patterns[0]
             example_file = top.metadata.get("example_file", "")
             if example_file:
                 ex_vector = _embed(example_file)
-                example_chunks = search_chunks(
-                    clients["chunks"], ex_vector, n_results=2
-                )
+                example_chunks = search_chunks(clients["chunks"], ex_vector, n_results=2)
                 example_chunks = [r for r in example_chunks if r.similarity >= 0.4]
-
         if not patterns and not example_chunks:
-            return f"No conventions found for '{task}'. The project may need re-indexing."
-
+            return f"No conventions found for '{task}'."
         parts = [f"**Project conventions for: '{task}'**\n"]
-
         if patterns:
             parts.append("## Patterns to follow:")
             for p in patterns:
                 parts.append(_fmt_pattern(p))
-
         if example_chunks:
             parts.append("\n## Example implementation (follow this structure):")
             for i, c in enumerate(example_chunks[:2]):
                 parts.append(_fmt_chunk(c, i + 1))
-
-        parts.append(
-            "\n> Follow the structure, imports, naming conventions, "
-            "and file organization shown above."
-        )
-
+        parts.append("\n> Match the structure, imports, naming, and file organization above.")
         return "\n\n".join(parts)
-
     except Exception as e:
         return f"Convention lookup error: {e}"
 
-
-# ── Tool 3 — ask_codebase ────────────────────────────────────────
 
 @mcp.tool()
 def ask_codebase(question: str) -> str:
     """
     Ask any question about the codebase and get a grounded answer.
-    Use for architecture questions, understanding flows, finding where
-    things are configured, or any 'how does X work' question.
+    Use for architecture questions, understanding flows, or any
+    'how does X work' question.
 
     Args:
         question: any question about this codebase
     """
     if not _is_indexed():
         return _not_indexed_msg()
-
     try:
-        # Search both chunks and patterns
         vector  = _embed(question)
         clients = _get_clients()
-
         chunk_results   = search_chunks(clients["chunks"], vector, n_results=6)
         chunk_results   = [r for r in chunk_results if r.similarity >= 0.3]
         pattern_results = search_patterns(clients["patterns"], vector, n_results=2)
         pattern_results = [r for r in pattern_results if r.similarity >= 0.35]
-
         if not chunk_results:
             return f"No relevant code found for: '{question}'"
-
-        # Build context for the LLM
         context = "\n\n".join(
             f"[{i+1}] {r.metadata.get('file_path')} — {r.metadata.get('label')}\n"
             f"```\n{r.content}\n```"
             for i, r in enumerate(chunk_results)
         )
-
         if pattern_results:
             context += "\n\n**Relevant patterns:**\n"
             context += "\n".join(_fmt_pattern(p) for p in pattern_results)
 
-        # Call LLM for the answer
-        from query import _get_answer_client, LLM_PROVIDER
-        import json
-
+        llm_provider = os.getenv("LLM_PROVIDER", "deepseek")
         messages = [
             {
                 "role": "system",
                 "content": (
                     "You are an expert on this codebase. Answer using only the "
                     "provided context. Reference specific files and line numbers. "
-                    "Be concise and practical. If context is insufficient, say so."
+                    "Be concise and practical."
                 )
             },
-            {
-                "role": "user",
-                "content": f"{context}\n\n---\n\nQuestion: {question}"
-            }
+            {"role": "user", "content": f"{context}\n\n---\n\nQuestion: {question}"}
         ]
 
-        answer = ""
-        if LLM_PROVIDER == "anthropic":
+        if llm_provider == "anthropic":
             from anthropic import Anthropic
             client = Anthropic()
             response = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=1500,
-                messages=messages[1:],
                 system=messages[0]["content"],
+                messages=messages[1:],
             )
             answer = response.content[0].text
         else:
-            client = _get_answer_client()
+            from openai import OpenAI as OpenAIClient
+            client = OpenAIClient(
+                api_key=os.getenv("DEEPSEEK_API_KEY"),
+                base_url="https://api.deepseek.com",
+            )
             response = client.chat.completions.create(
                 model="deepseek-chat",
                 max_tokens=1500,
@@ -288,7 +256,6 @@ def ask_codebase(question: str) -> str:
             )
             answer = response.choices[0].message.content
 
-        # Append sources
         sources = []
         seen = set()
         for r in chunk_results:
@@ -300,36 +267,79 @@ def ask_codebase(question: str) -> str:
                     f"- `{fp}` lines {r.metadata.get('start_line')}–"
                     f"{r.metadata.get('end_line')} [{r.metadata.get('label')}]"
                 )
-
-        return f"{answer}\n\n---\n**Sources:** \n" + "\n".join(sources)
-
+        return f"{answer}\n\n---\n**Sources:**\n" + "\n".join(sources)
     except Exception as e:
         return f"Query error: {e}"
 
 
-# ── Tool 4 — index_project ───────────────────────────────────────
-
 @mcp.tool()
-def index_project(reset: bool = False) -> str:
+def project_status() -> str:
+    """
+    Check whether the current project has been indexed and is ready to use.
+    Shows chunk count, pattern count, DB location, and last indexed time.
+    """
+    try:
+        db    = get_db()
+        stats = collection_stats(db)
+
+        chunks   = stats["chunks"]
+        patterns = stats["patterns"]
+
+        # Check DB folder exists and get last modified time
+        if os.path.exists(PROJECT_DB):
+            last_modified = os.path.getmtime(PROJECT_DB)
+            import datetime
+            last_indexed = datetime.datetime.fromtimestamp(last_modified).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        else:
+            last_indexed = "never"
+
+        if chunks == 0:
+            status = "❌ NOT INDEXED"
+            action = (
+                f"\nRun `index_project` to index this project, or:\n"
+                f"  python {os.path.join(_AGENT_ROOT, 'clusterer', 'index.py')} {PROJECT_ROOT}"
+            )
+        else:
+            status = "✅ READY"
+            action = "\nAll tools are available for this project."
+
+        return (
+            f"Project: {PROJECT_ROOT}\n"
+            f"Status:  {status}\n"
+            f"Chunks:  {chunks}\n"
+            f"Patterns: {patterns}\n"
+            f"Last indexed: {last_indexed}\n"
+            f"DB path: {PROJECT_DB}"
+            f"{action}"
+        )
+    except Exception as e:
+        return f"Status check error: {e}"
+
+
+
     """
     Index the current project into the vector database.
-    Run this once when setting up a new project, or with reset=True
-    after significant code changes.
+    Run this once per project, or with reset=True after major code changes.
 
     Args:
         reset: if True, clears existing index and re-indexes from scratch
     """
     try:
+        _query_dir = os.path.join(_AGENT_ROOT, "query-engine")
+        if os.path.exists(_query_dir) and _query_dir not in sys.path:
+            sys.path.insert(0, _query_dir)
+
         from reader import read_repo
         from chunker import chunk_all
         from patterns import build_file_summaries
         from indexer import index_chunks
         from clusterer import cluster_and_store_patterns
 
-        # Create the project DB directory
         os.makedirs(PROJECT_DB, exist_ok=True)
 
-        # Add .codebase-agent to project .gitignore if not already there
+        # Auto-add .codebase-agent to project .gitignore
         gitignore_path = os.path.join(PROJECT_ROOT, ".gitignore")
         if os.path.exists(gitignore_path):
             content = open(gitignore_path).read()
@@ -337,26 +347,22 @@ def index_project(reset: bool = False) -> str:
                 with open(gitignore_path, "a") as f:
                     f.write("\n# Codebase agent index\n.codebase-agent/\n")
 
-        result_lines = [f"Indexing `{PROJECT_ROOT}`...\n"]
-
         files = read_repo(PROJECT_ROOT)
         if not files:
-            return "No indexable files found in this project."
+            return "No indexable files found."
 
-        chunks = chunk_all(files)
+        chunks    = chunk_all(files)
         summaries = build_file_summaries(chunks)
 
-        chunk_count = index_chunks(chunks, PROJECT_ROOT, reset=reset)
-        result_lines.append(f"✅ {chunk_count} chunks indexed")
-
+        chunk_count   = index_chunks(chunks, PROJECT_ROOT, reset=reset)
         pattern_count = cluster_and_store_patterns(summaries)
-        result_lines.append(f"✅ {pattern_count} patterns discovered")
 
-        result_lines.append(f"\nDB stored at: `{PROJECT_DB}`")
-        result_lines.append("Ready to answer questions about this codebase.")
-
-        return "\n".join(result_lines)
-
+        return (
+            f"✅ Indexed `{PROJECT_ROOT}`\n"
+            f"   {chunk_count} chunks\n"
+            f"   {pattern_count} patterns\n"
+            f"   DB: `{PROJECT_DB}`"
+        )
     except Exception as e:
         return f"Indexing error: {e}"
 

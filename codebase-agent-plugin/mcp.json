@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "codebase-agent": {
+      "command": "/Users/developer/Documents/Claude/Projects/codebase-agent/.venv/bin/python",
+      "args": ["/Users/developer/Documents/Claude/Projects/codebase-agent/mcp_server.py"],
+      "env": {
+        "PYTHONPATH": "/Users/developer/Documents/Claude/Projects/codebase-agent"
+      }
+    }
+  }
+}
