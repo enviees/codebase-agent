@@ -3,6 +3,7 @@ description: Ask any question about the codebase
 argument-hint: [question]
 ---
 
-Call the ask_codebase tool from codebase-agent with this question: $ARGUMENTS
+Use the `ask_codebase` MCP tool from the codebase-agent server with this question: $ARGUMENTS
 
-Synthesize the answer clearly, referencing file paths and line numbers.
+Do NOT use bash, npx, or any shell command.
+Call the tool directly and synthesize the answer clearly, referencing file paths and line numbers.
