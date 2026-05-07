@@ -1,14 +1,15 @@
 {
   "name": "codebase-agent",
   "owner": {
-    "name": "codebase-agent"
+    "name": "enviees"
   },
   "plugins": [
     {
       "name": "codebase-agent-plugin",
       "description": "Semantic codebase search and convention-aware code generation for Claude Code.",
       "source": {
-        "source": "local",
+        "source": "git-subdir",
+        "url": "https://github.com/enviees/codebase-agent.git",
         "path": "codebase-agent-plugin"
       }
     }
