@@ -1,7 +1,14 @@
 #!/bin/bash
-# setup.sh — runs on every SessionStart, only does work on first run
+# setup.sh — runs on SessionStart or when invoked by index command
 
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+# Resolve plugin root from script location if CLAUDE_PLUGIN_ROOT is not set
+if [ -z "${CLAUDE_PLUGIN_ROOT}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
+else
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+fi
+
 VENV="${PLUGIN_ROOT}/.venv"
 REQUIREMENTS="${PLUGIN_ROOT}/requirements.txt"
 SETUP_DONE="${PLUGIN_ROOT}/.setup_done"
