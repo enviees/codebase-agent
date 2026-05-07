@@ -1,62 +1,64 @@
 # codebase-agent
 
-Semantic codebase search and convention-aware code generation for Claude Code.
-Index your project once — Claude will search it, understand its patterns, and follow your conventions automatically when creating new files.
+A Claude Code plugin that gives Claude semantic understanding of any codebase.
 
----
+Index once — Claude searches your code by meaning, understands your project's patterns, and follows your conventions when creating new files.
 
 ## Install
 
-```
-/plugin install codebase-agent
-```
+See [codebase-agent-plugin/README.md](codebase-agent-plugin/README.md) for full install instructions.
 
----
-
-## API Keys
-
-Add these to your shell profile (`~/.zshrc` or `~/.bashrc`):
+**Quick version:**
 
 ```bash
-export OPENAI_API_KEY=sk-...        # required — used for embeddings
-export DEEPSEEK_API_KEY=sk-...      # required — used for answers
+# 1. Clone and set up
+git clone https://github.com/YOUR_USERNAME/codebase-agent.git
+cd codebase-agent
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Add API keys to .env
+cp .env.example .env
+# edit .env with your keys
+
+# 3. Register in Claude Code
+/plugin marketplace add YOUR_USERNAME/codebase-agent
+/plugin install codebase-agent-plugin@YOUR_USERNAME/codebase-agent
 ```
 
-Reload your shell, then restart Claude Code.
-
-> Prefer Claude over DeepSeek? Add `ANTHROPIC_API_KEY=sk-ant-...` and `LLM_PROVIDER=anthropic` instead.
-
----
-
-## Quickstart
-
-Open Claude Code in any project and say:
+## Project structure
 
 ```
-index this project
+codebase-agent/
+  mcp_server.py          ← MCP server (auto-started by the plugin)
+  reader.py              ← file reader and filter
+  chunker.py             ← splits code into semantic chunks
+  embedder.py            ← OpenAI embedding wrapper
+  vectordb.py            ← ChromaDB wrapper
+  indexer.py             ← Phase 2a: embed + store chunks
+  clusterer.py           ← Phase 2b: cluster + name patterns
+  patterns.py            ← file summary generation
+  requirements.txt
+  .env.example
+  codebase-agent-plugin/ ← Claude Code plugin
+    .claude-plugin/
+      plugin.json
+    skills/
+    commands/
+    hooks/
+    mcp.json
 ```
-
-That's it. Once indexed, just ask naturally:
-
-```
-how does authentication work?
-find the Button component
-create a new settings page
-```
-
----
-
-## Commands
-
-| Say this               | Or type this                     | What it does               |
-| ---------------------- | -------------------------------- | -------------------------- |
-| `check project status` | `/codebase-agent:status`         | Is this project indexed?   |
-| `index this project`   | `/codebase-agent:index`          | Index current project      |
-| `index from scratch`   | `/codebase-agent:index --reset`  | Re-index after big changes |
-| anything               | `/codebase-agent:ask [question]` | Ask about the codebase     |
-
----
 
 ## How it works
 
-Each project gets its own isolated database stored at `.codebase-agent/` inside your project folder — automatically gitignored. Opening Claude Code in a different project gives you a fresh context for that project.
+1. **Index** — reads your codebase, splits it into chunks, embeds them via OpenAI, discovers patterns via clustering, stores everything in `.codebase-agent/` inside your project
+2. **Search** — embeds your question, finds the most semantically similar chunks
+3. **Answer** — sends retrieved chunks + your question to the LLM
+4. **Create** — retrieves your project's patterns before generating any new file
+
+## Requirements
+
+- Python 3.10+
+- OpenAI API key (embeddings)
+- DeepSeek or Anthropic API key (answers)
+- Claude Code v2.0+
