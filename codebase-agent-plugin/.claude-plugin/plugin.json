@@ -4,7 +4,8 @@
   "description": "Semantic codebase search and convention-aware code generation for Claude Code.",
   "author": {
     "name": "enviees",
-    "email": "enviees@users.noreply.github.com"
+    "email": "enviees@users.noreply.github.com",
+    "url": "https://github.com/enviees"
   },
   "mcp": "mcp.json"
 }
