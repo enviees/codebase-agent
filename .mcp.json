@@ -1,11 +1,8 @@
 {
   "mcpServers": {
     "codebase-agent": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/.venv/bin/python",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp_server.py"],
-      "env": {
-        "PYTHONPATH": "${CLAUDE_PLUGIN_ROOT}"
-      }
+      "command": "bash",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/start_mcp.sh"]
     }
   }
 }

@@ -51,7 +51,7 @@ def _chunk_to_metadata(chunk: Chunk) -> dict:
     }
 
 
-def index_chunks(chunks: list[Chunk], repo_path: str, reset: bool = False) -> int:
+def index_chunks(chunks: list[Chunk], repo_path: str, reset: bool = False, update: bool = False) -> int:
     """
     Main entry point for Phase 2a.
     Embeds all chunks and stores them in ChromaDB.
@@ -82,7 +82,7 @@ def index_chunks(chunks: list[Chunk], repo_path: str, reset: bool = False) -> in
         print("          Clearing existing chunks...")
         db.delete_collection("chunks")
         collection = get_chunks_collection(db)
-        
+
     if update:
         # Only embed chunks not already in the DB
         existing_ids = get_indexed_ids(collection)

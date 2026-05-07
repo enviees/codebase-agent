@@ -247,7 +247,7 @@ def ask_codebase(question: str) -> str:
             from openai import OpenAI as OpenAIClient
             client = OpenAIClient(
                 api_key=os.getenv("DEEPSEEK_API_KEY"),
-                base_url="https://api.deepseek.com",
+                base_url="https://api.deepseek.com/v1",
             )
             response = client.chat.completions.create(
                 model="deepseek-chat",
