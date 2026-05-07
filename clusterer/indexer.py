@@ -82,6 +82,15 @@ def index_chunks(chunks: list[Chunk], repo_path: str, reset: bool = False) -> in
         print("          Clearing existing chunks...")
         db.delete_collection("chunks")
         collection = get_chunks_collection(db)
+        
+    if update:
+        # Only embed chunks not already in the DB
+        existing_ids = get_indexed_ids(collection)
+        chunks = [c for c in chunks if c.chunk_id not in existing_ids]
+        if not chunks:
+            print("  Nothing new to index.")
+            return collection.count()
+        print(f"  {len(chunks)} new chunks to add")
 
     existing = collection.count()
     if existing > 0 and not reset:
@@ -107,3 +116,10 @@ def index_chunks(chunks: list[Chunk], repo_path: str, reset: bool = False) -> in
     final_count = collection.count()
     print(f"\n[indexer] Phase 2a complete — {final_count} chunks in ChromaDB ✓")
     return final_count
+
+
+
+def get_indexed_ids(collection) -> set[str]:
+    """Return all chunk IDs already in the DB."""
+    result = collection.get(include=[])
+    return set(result["ids"])

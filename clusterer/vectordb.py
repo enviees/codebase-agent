@@ -8,12 +8,16 @@ Two collections:
 ChromaDB stores everything locally in ./.chroma by default — no server needed.
 """
 
+import os
 import chromadb
 from chromadb.config import Settings
 from dataclasses import dataclass
 
-# Local storage path for the vector DB
-CHROMA_PATH = "./.chroma"
+# DB path — set CHROMA_PATH in .env to override.
+# Resolved against CWD so ".chroma" in .env always means
+# <wherever you run the script from>/.chroma
+_raw_path   = os.getenv("CHROMA_PATH", ".chroma")
+CHROMA_PATH = os.path.abspath(_raw_path)
 
 # Collection names
 CHUNKS_COLLECTION    = "chunks"
@@ -36,8 +40,9 @@ class SearchResult:
 def get_db(path: str = CHROMA_PATH) -> chromadb.ClientAPI:
     """
     Get a persistent ChromaDB client.
-    Creates the .chroma directory if it doesn't exist.
+    Always uses an absolute path so it works regardless of CWD.
     """
+    os.makedirs(path, exist_ok=True)
     return chromadb.PersistentClient(
         path=path,
         settings=Settings(anonymized_telemetry=False),

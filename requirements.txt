@@ -11,6 +11,6 @@
 openai>=1.0.0        # embeddings + DeepSeek LLM
 chromadb>=0.4.0      # local vector database
 python-dotenv>=1.0.0 # load keys from .env file
+anthropic>=0.20.0
 
-# Optional — only if LLM_PROVIDER=anthropic
-# anthropic>=0.20.0
+mcp[cli]>=1.0.0
