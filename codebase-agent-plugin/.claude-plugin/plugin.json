@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Semantic codebase search and convention-aware code generation for Claude Code.",
   "author": {
-    "name": "enviees"
+    "name": "enviees",
+    "email": "enviees@users.noreply.github.com"
   },
   "mcp": "mcp.json"
 }
