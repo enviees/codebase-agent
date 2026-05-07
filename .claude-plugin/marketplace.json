@@ -5,12 +5,11 @@
   },
   "plugins": [
     {
-      "name": "codebase-agent-plugin",
+      "name": "codebase-agent",
       "description": "Semantic codebase search and convention-aware code generation for Claude Code.",
       "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/enviees/codebase-agent.git",
-        "path": "codebase-agent-plugin"
+        "source": "github",
+        "repo": "enviees/codebase-agent"
       }
     }
   ]

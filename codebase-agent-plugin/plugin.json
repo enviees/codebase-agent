@@ -1,7 +1,0 @@
-{
-  "name": "codebase-agent",
-  "version": "1.0.0",
-  "description": "Semantic codebase search, pattern detection, and convention-aware code generation",
-  "author": "codebase-agent",
-  "mcp": "mcp.json"
-}
