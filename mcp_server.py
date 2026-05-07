@@ -319,6 +319,8 @@ def project_status() -> str:
 
 
 
+@mcp.tool()
+def index_project(reset: bool = False) -> str:
     """
     Index the current project into the vector database.
     Run this once per project, or with reset=True after major code changes.
