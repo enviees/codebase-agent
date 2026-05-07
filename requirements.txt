@@ -1,0 +1,5 @@
+# Phase 1 — no external dependencies needed (pure stdlib)
+# These will be added in Phase 2 when we add embeddings + vector DB:
+#
+# openai>=1.0.0
+# chromadb>=0.4.0
