@@ -1,7 +1,7 @@
 ---
 name: conventions
 description: Retrieve this project's coding conventions before creating new files. Use when the user wants to create a new page, component, hook, feature, or any new file to ensure it follows the project's existing patterns.
-when_to_use: When user says "create", "add", "build", "make", "new page", "new component", "new hook", "new feature", "implement", "scaffold"
+when_to_use: When user says "create", "add", "build", "make", "new page", "new component", "new hook", "new feature", "implement", "scaffold", "generate"
 ---
 
 ALWAYS call `get_conventions` from codebase-agent BEFORE generating any new code.
