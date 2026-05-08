@@ -6,11 +6,9 @@ when_to_use: When user says "find", "search", "where is", "show me", "locate", "
 
 Call the `search_code` MCP tool from codebase-agent with the user's query.
 
-After getting results:
+After getting results, write the full answer directly in the chat — do not just show a recap line. Include:
 
-- Summarize what was found in plain English
-- Highlight the most relevant file and function
-- Reference exact file paths and line numbers
-- If nothing relevant was found, suggest rephrasing or checking if the project is indexed
-
-Do not just dump the raw results — synthesize them into a useful answer.
+- A plain English summary of what was found
+- The most relevant file paths and line numbers
+- Key code snippets if helpful
+- If nothing found, suggest rephrasing or checking if the project is indexed
